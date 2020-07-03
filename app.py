@@ -8,7 +8,7 @@ line_height = 530  # 530
 matches = []
 cars = 0
 motors = 0
-car_desire_length = 110
+car_desire_length = 100
 
 
 def get_center(x, y, w, h):
