@@ -1,34 +1,79 @@
 import cv2
+import numpy as np
 
-cap = cv2.VideoCapture('vid.mp4')
-cv2.namedWindow('car detection')
+min_contour_width = 40  # 40
+min_contour_height = 40  # 40
+offset = 10  # 10
+line_height = 530  # 530
+matches = []
+cars = 0
+motors = 0
+car_desire_length = 110
 
-_, frame1 = cap.read()
-_, frame2 = cap.read()
 
-while cap.isOpened():
-    diff = cv2.absdiff(frame1, frame2)
-    gray = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (5,5), 0)
-    _, thresh = cv2.threshold(blur, 30, 255, cv2.THRESH_BINARY)
-    
-    dilated = cv2.dilate(thresh, None, iterations=6)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+def get_center(x, y, w, h):
+    x1 = int(w / 2)
+    y1 = int(h / 2)
 
-    for contour in contours:
-        (x, y, w, h) = cv2.boundingRect(contour)
+    cx = x + x1
+    cy = y + y1
+    return cx, cy
 
-        if cv2.contourArea(contour) < 500:
+
+cap = cv2.VideoCapture('traffic-short.mp4')
+
+if cap.isOpened():
+    ret, frame1 = cap.read()
+else:
+    ret = False
+ret, frame1 = cap.read()
+ret, frame2 = cap.read()
+
+while ret:
+    d = cv2.absdiff(frame1, frame2)
+    grey = cv2.cvtColor(d, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(grey, (5, 5), 0)
+    ret, th = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
+    dilated = cv2.dilate(th, np.ones((3, 3)))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2, 2))
+
+    closing = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel)
+    contours, h = cv2.findContours(
+        closing, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    for(i, c) in enumerate(contours):
+        (x, y, w, h) = cv2.boundingRect(c)
+        contour_valid = (w >= min_contour_width) and (h >= min_contour_height)
+
+        if not contour_valid:
             continue
-        cv2.rectangle(frame1, (x, y), (x+w, y+h), (0, 255, 0), 2)
+        cv2.rectangle(frame1, (x-10, y-10), (x+w+10, y+h+10), (255, 0, 0), 2)
+        cv2.line(frame1, (0, line_height), (1200, line_height), (0, 255, 0), 2)
 
-    cv2.imshow('detection', frame1)
+        center = get_center(x, y, w, h)
+        matches.append(center)
+        cv2.circle(frame1, center, 5, (0, 255, 0), -1)
+        cx, cy = get_center(x, y, w, h)
 
-    frame1 = frame2
-    _, frame2 = cap.read()
+        for (x, y) in matches:
+            if y < (line_height+offset) and y > (line_height-offset):
+                if w > car_desire_length:
+                    cars = cars+1
+                else:
+                    motors = motors+1
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+                matches.remove((x, y))
+
+    cv2.putText(frame1, "Cars: " + str(cars), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                (0, 170, 0), 2)
+    cv2.putText(frame1, "Motors: " + str(motors), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1,
+                (0, 170, 0), 2)
+
+    cv2.imshow("Original", frame1)
+    if cv2.waitKey(1) == 27:
         break
+    frame1 = frame2
+    ret, frame2 = cap.read()
+# print(matches)
 
-cap.release()
 cv2.destroyAllWindows()
+cap.release()
