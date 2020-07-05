@@ -1,6 +1,16 @@
+# library
+import sys
+from PyQt5.QtWidgets import QApplication
+from PyQt5.QtWidgets import QWidget
+from PyQt5.QtGui import QImage
+from PyQt5.QtGui import QPixmap
+from PyQt5.QtCore import QTimer
+import cv2
+from ui_main_window import *
 import cv2
 import numpy as np
 
+# variable
 min_contour_width = 40  # 40
 min_contour_height = 40  # 40
 offset = 10  # 10
@@ -9,7 +19,7 @@ matches = []
 cars = 0
 motors = 0
 car_desire_length = 100
-
+scale_percent = 45
 
 def get_center(x, y, w, h):
     x1 = int(w / 2)
@@ -19,18 +29,10 @@ def get_center(x, y, w, h):
     cy = y + y1
     return cx, cy
 
-
-cap = cv2.VideoCapture('traffic-short.mp4')
-
-if cap.isOpened():
-    ret, frame1 = cap.read()
-else:
-    ret = False
-ret, frame1 = cap.read()
-ret, frame2 = cap.read()
-
-while ret:
-    d = cv2.absdiff(frame1, frame2)
+def process_img(frame1, frame2):
+    global cars, motors
+    img = frame1
+    d = cv2.absdiff(img, frame2)
     grey = cv2.cvtColor(d, cv2.COLOR_BGR2GRAY)
     blur = cv2.GaussianBlur(grey, (5, 5), 0)
     ret, th = cv2.threshold(blur, 20, 255, cv2.THRESH_BINARY)
@@ -46,12 +48,12 @@ while ret:
 
         if not contour_valid:
             continue
-        cv2.rectangle(frame1, (x-10, y-10), (x+w+10, y+h+10), (255, 0, 0), 2)
-        cv2.line(frame1, (0, line_height), (1200, line_height), (0, 255, 0), 2)
+        cv2.rectangle(img, (x-10, y-10), (x+w+10, y+h+10), (255, 0, 0), 2)
+        cv2.line(img, (0, line_height), (1200, line_height), (0, 255, 0), 2)
 
         center = get_center(x, y, w, h)
         matches.append(center)
-        cv2.circle(frame1, center, 5, (0, 255, 0), -1)
+        cv2.circle(img, center, 5, (0, 255, 0), -1)
         cx, cy = get_center(x, y, w, h)
 
         for (x, y) in matches:
@@ -63,17 +65,76 @@ while ret:
 
                 matches.remove((x, y))
 
-    cv2.putText(frame1, "Cars: " + str(cars), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    cv2.putText(img, "Cars: " + str(cars), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
                 (0, 170, 0), 2)
-    cv2.putText(frame1, "Motors: " + str(motors), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    cv2.putText(img, "Motors: " + str(motors), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1,
                 (0, 170, 0), 2)
+                
+    img, frame2 = resize(img, frame2)
+    return img, frame2
 
-    cv2.imshow("Original", frame1)
-    if cv2.waitKey(1) == 27:
-        break
-    frame1 = frame2
-    ret, frame2 = cap.read()
-# print(matches)
+def resize(frame1, frame2):
+    # resize
+    width = int(frame1.shape[1] * scale_percent / 100)
+    height = int(frame1.shape[0] * scale_percent / 100)
+    frame1_sz = cv2.resize(frame1, (width, height), interpolation = cv2.INTER_AREA)
+    frame2_sz = cv2.resize(frame2, (width, height), interpolation = cv2.INTER_AREA)
 
-cv2.destroyAllWindows()
-cap.release()
+    return frame1_sz, frame2_sz
+
+class MainWindow(QWidget):
+    # class constructor
+    def __init__(self):
+        super().__init__()
+        self.ui = Ui_Form()
+        self.ui.setupUi(self)
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(self.view_video)
+        self.ui.control_bt.clicked.connect(self.controlTimer)
+
+    # view camera
+    def view_video(self):
+        frame1 = self.frame1
+        frame2 = self.frame2
+        proc, origin = process_img(frame1, frame2)
+
+        proc = cv2.cvtColor(proc, cv2.COLOR_BGR2RGB)
+        origin = cv2.cvtColor(origin, cv2.COLOR_BGR2RGB)
+
+        # create QImage from image
+        height, width, channel = proc.shape
+        step = channel * width
+        qImg_bgsub = QImage(origin.data, width, height, step, QImage.Format_RGB888)
+        qImg_procvid = QImage(proc.data, width, height, step, QImage.Format_RGB888)
+
+        self.ui.background_sub.setPixmap(QPixmap.fromImage(qImg_bgsub))
+        self.ui.process_vid.setPixmap(QPixmap.fromImage(qImg_procvid))
+
+        self.frame1 = self.frame2
+        _, self.frame2 = self.cap.read()
+
+    # start/stop timer
+    def controlTimer(self):
+        # if timer is stopped
+        if not self.timer.isActive():
+            self.cap = cv2.VideoCapture('traffic.mp4')
+            _, self.frame1 = self.cap.read()
+            _, self.frame2 = self.cap.read()
+
+            self.timer.start(1)
+            self.ui.control_bt.setText("Stop")
+
+        # if timer is started
+        else:
+            self.timer.stop()
+            self.cap.release()
+            self.ui.control_bt.setText("Start")
+
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+
+    mainWindow = MainWindow()
+    mainWindow.show()
+
+    sys.exit(app.exec_())
