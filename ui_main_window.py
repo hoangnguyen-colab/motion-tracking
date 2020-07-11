@@ -37,7 +37,7 @@ class Ui_Form(object):
 
     def retranslateUi(self, Form):
         _translate = QtCore.QCoreApplication.translate
-        Form.setWindowTitle(_translate("Form", "Cam view"))
+        Form.setWindowTitle(_translate("Form", "Vehicle Counting"))
         self.file_load_btn.setText(_translate("Form", "Load File"))
         self.process_vid.setText(_translate("Form", "TextLabel"))
 
