@@ -4,7 +4,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QInputDialog, QLineEdit, QFil
 from PyQt5.QtGui import QImage, QPixmap
 from PyQt5.QtCore import QTimer
 import cv2
-from main_window import *
+from ui_main_window import *
 import cv2
 import numpy as np
 
@@ -17,7 +17,8 @@ matches = []
 cars = 0
 motors = 0
 car_desire_length = 100
-scale_percent = 50
+width_sz = 896
+height_sz = 504
 
 
 def get_center(x, y, w, h):
@@ -74,26 +75,25 @@ def process_img(frame1, frame2):
 
 def resize(frame1, frame2):
     # resize
-    width = int(frame1.shape[1] * scale_percent / 100)
-    height = int(frame1.shape[0] * scale_percent / 100)
-    frame1_sz = cv2.resize(frame1, (width, height),
+    frame1_sz = cv2.resize(frame1, (width_sz, height_sz),
                            interpolation=cv2.INTER_AREA)
-    frame2_sz = cv2.resize(frame2, (width, height),
+    frame2_sz = cv2.resize(frame2, (width_sz, height_sz),
                            interpolation=cv2.INTER_AREA)
-
     return frame1_sz, frame2_sz
 
 class MainWindow(QWidget):
     # class constructor
     def __init__(self):
         super().__init__()
+        
         self.filePath = ""
-        self.ui = Ui_MainWindow()
+        self.running = True
+
+        self.ui = Ui_Form()
         self.ui.setupUi(self)
 
         self.timer = QTimer()
         self.timer.timeout.connect(self.view_video)
-        self.ui.control_btn.clicked.connect(self.button_start)
         self.ui.file_load_btn.clicked.connect(self.openFileNameDialog)
 
     # view camera
@@ -117,25 +117,23 @@ class MainWindow(QWidget):
         _, self.frame2 = self.cap.read()
 
     # start/stop timer
-    def button_start(self):
+    def start_video(self):
         # check path null
         if not self.filePath:
             self.messageBox()
         else:
             # if timer is stopped
-            if not self.timer.isActive():
-                self.cap = cv2.VideoCapture('traffic.mp4')
-                _, self.frame1 = self.cap.read()
-                _, self.frame2 = self.cap.read()
-
-                self.timer.start(1)
-                self.ui.control_btn.setText("Stop")
-
-            # if timer is started
-            else:
+            if self.timer.isActive():
                 self.timer.stop()
                 self.cap.release()
-                self.ui.control_btn.setText("Start")
+            
+            self.cap = cv2.VideoCapture(self.filePath)
+            _, self.frame1 = self.cap.read()
+            _, self.frame2 = self.cap.read()
+
+            self.timer.start(1)
+                
+
 
     def openFileNameDialog(self):
         options = QFileDialog.Options()
@@ -144,11 +142,10 @@ class MainWindow(QWidget):
             self, "Open video file", "", "All Files (*);;Video Files (*.mp4)", options=options)
         if filePath:
             self.filePath = filePath
+            self.start_video()
 
     def messageBox(self):
-        buttonReply = QMessageBox.question(self, 'Path is empty!', "Please open mp4 file first...", QMessageBox.Cancel)
-        # if buttonReply == QMessageBox.Cancel:
-        #     print('Yes clicked.')
+        QMessageBox.question(self, 'Path is empty!', "Please open mp4 file first...", QMessageBox.Cancel)
         self.show()
 
 
