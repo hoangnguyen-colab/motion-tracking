@@ -65,13 +65,13 @@ def process_img(frame1, frame2):
 
                 matches.remove((x, y))
 
-    cv2.putText(img, "Cars: " + str(cars), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                (0, 170, 0), 2)
-    cv2.putText(img, "Motors: " + str(motors), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1,
-                (0, 170, 0), 2)
+    # cv2.putText(img, "Cars: " + str(cars), (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    #             (0, 170, 0), 2)
+    # cv2.putText(img, "Motors: " + str(motors), (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1,
+    #             (0, 170, 0), 2)
 
-    img, frame2 = resize(img, frame2)
-    return img, frame2
+    img, _ = resize(img, frame2)
+    return img, cars, motors
 
 def resize(frame1, frame2):
     # resize
@@ -100,19 +100,20 @@ class MainWindow(QWidget):
     def view_video(self):
         frame1 = self.frame1
         frame2 = self.frame2
-        proc, origin = process_img(frame1, frame2)
-
-        proc = cv2.cvtColor(proc, cv2.COLOR_BGR2RGB)
-        origin = cv2.cvtColor(origin, cv2.COLOR_BGR2RGB)
+        process, car, motor = process_img(frame1, frame2)
+        process = cv2.cvtColor(process, cv2.COLOR_BGR2RGB)
 
         # create QImage from image
-        height, width, channel = proc.shape
+        height, width, channel = process.shape
         step = channel * width
-        qImg_procvid = QImage(proc.data, width, height,
+        qImg_procvid = QImage(process.data, width, height,
                               step, QImage.Format_RGB888)
 
         self.ui.process_vid.setPixmap(QPixmap.fromImage(qImg_procvid))
 
+        self.ui.car_count.setText(str(car))
+        self.ui.motor_count.setText(str(motor))
+        
         self.frame1 = self.frame2
         _, self.frame2 = self.cap.read()
 
@@ -132,9 +133,7 @@ class MainWindow(QWidget):
             _, self.frame2 = self.cap.read()
 
             self.timer.start(1)
-                
-
-
+    
     def openFileNameDialog(self):
         options = QFileDialog.Options()
         options |= QFileDialog.DontUseNativeDialog
